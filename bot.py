@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import os
+import time
 
 TOKEN = os.environ.get('DISCORD_TOKEN')
 STAFF_ROLE_ID = 1508608045826048011
@@ -40,7 +41,20 @@ class HelpButton(discord.ui.View):
             return
         await interaction.response.send_message(f'🎙️ השיחה: {self.voice_channel.mention}', ephemeral=True)
 
+help_cooldowns = {}
+
 async def send_help(ctx):
+    user_id = ctx.author.id
+    now = time.time()
+
+    if user_id in help_cooldowns:
+        time_left = 45 - (now - help_cooldowns[user_id])
+        if time_left > 0:
+            await ctx.author.send(f'⏳ תוכל להשתמש בפקודה שוב בעוד **{int(time_left)} שניות**!')
+            return
+
+    help_cooldowns[user_id] = now
+
     voice_channel = None
     if ctx.author.voice:
         voice_channel = ctx.author.voice.channel
@@ -54,7 +68,6 @@ async def send_help(ctx):
         msg = f'🆘 {ctx.author.mention} זקוק לעזרה!\n{mention} נא לסייע.'
 
     view = HelpButton(voice_channel)
-    await ctx.message.delete()
     await ctx.send(msg, view=view)
 
 @bot.command(name='עזרה')
