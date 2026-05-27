@@ -5,6 +5,9 @@ import time
 
 TOKEN = os.environ.get('DISCORD_TOKEN')
 STAFF_ROLE_ID = 1508608045826048011
+RECRUITMENT_CHANNEL_ID = 1509288416435503155
+STAFF_FORMS_CHANNEL_ID = 1509288578763591740
+ACCEPTED_CATEGORY_ID = 1509288878857519386
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -20,6 +23,8 @@ async def on_ready():
 @bot.command()
 async def היי(ctx):
     await ctx.send(f'היי {ctx.author.name}! 👋')
+
+# =================== מערכת עזרה ===================
 
 class HelpButton(discord.ui.View):
     def __init__(self, voice_channel=None):
@@ -85,5 +90,135 @@ async def help_en(ctx):
 @bot.command(name='helpme')
 async def help_me(ctx):
     await send_help(ctx)
+
+# =================== מערכת גיוסים ===================
+
+class RecruitmentModal(discord.ui.Modal, title='מיון לצבא ההגנה לישראל'):
+    age = discord.ui.TextInput(
+        label='הגיל שלך',
+        placeholder='לדוגמה: 18',
+        max_length=3
+    )
+    unit = discord.ui.TextInput(
+        label='לאיזה יחידה תרצה להתקבל',
+        placeholder='לדוגמה: חיל רגלים',
+        max_length=100
+    )
+    reason = discord.ui.TextInput(
+        label='למה דווקא אותך ולא מישהו אחר',
+        style=discord.TextStyle.paragraph,
+        placeholder='תאר את עצמך...',
+        max_length=500
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        staff_forms_channel = interaction.guild.get_channel(STAFF_FORMS_CHANNEL_ID)
+
+        embed = discord.Embed(
+            title='📋 טופס מיון חדש',
+            color=discord.Color.blue()
+        )
+        embed.add_field(name='👤 מגיש הטופס', value=interaction.user.mention, inline=False)
+        embed.add_field(name='🎂 גיל', value=self.age.value, inline=True)
+        embed.add_field(name='🎖️ יחידה מבוקשת', value=self.unit.value, inline=True)
+        embed.add_field(name='💬 למה אותך', value=self.reason.value, inline=False)
+        embed.set_footer(text=f'ID: {interaction.user.id}')
+
+        view = StaffDecisionView(
+            applicant=interaction.user,
+            age=self.age.value,
+            unit=self.unit.value,
+            reason=self.reason.value
+        )
+
+        await staff_forms_channel.send(embed=embed, view=view)
+        await interaction.response.send_message('✅ הטופס שלך נשלח בהצלחה! המתן לתגובת הצוות.', ephemeral=True)
+
+
+class StaffDecisionView(discord.ui.View):
+    def __init__(self, applicant, age, unit, reason):
+        super().__init__(timeout=None)
+        self.applicant = applicant
+        self.age = age
+        self.unit = unit
+        self.reason = reason
+
+    @discord.ui.button(label='✅ קבלה', style=discord.ButtonStyle.green)
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        if staff_role not in interaction.user.roles:
+            await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתורים אלו!', ephemeral=True)
+            return
+
+        category = interaction.guild.get_channel(ACCEPTED_CATEGORY_ID)
+
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            self.applicant: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            staff_role: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        }
+
+        channel = await interaction.guild.create_text_channel(
+            name=f'מיון-{self.applicant.name}',
+            category=category,
+            overwrites=overwrites
+        )
+
+        await channel.send(
+            f'{self.applicant.mention} כל הכבוד! 🎉\n'
+            f'עברת את שלב מיוני הטפסים.\n'
+            f'תצטרך לקבוע עכשיו שיחה עם צוות על מנת לעבור את שלב ב.'
+        )
+
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+        await interaction.response.send_message(f'✅ התקבל! נפתח חדר: {channel.mention}', ephemeral=True)
+
+    @discord.ui.button(label='❌ דחייה', style=discord.ButtonStyle.red)
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        if staff_role not in interaction.user.roles:
+            await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתורים אלו!', ephemeral=True)
+            return
+
+        try:
+            await self.applicant.send(
+                '❌ טופס המיון שלך נדחה.\n'
+                'אם תרצה מידע נוסף, אתה מוזמן לפתוח טיקט.'
+            )
+        except:
+            pass
+
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+        await interaction.response.send_message('❌ הטופס נדחה והמשתמש קיבל הודעה.', ephemeral=True)
+
+
+class RecruitmentView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label='מיון', style=discord.ButtonStyle.primary, emoji='📋')
+    async def start_recruitment(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(RecruitmentModal())
+
+
+@bot.command(name='גיוס')
+async def recruitment(ctx):
+    if ctx.channel.id != RECRUITMENT_CHANNEL_ID:
+        await ctx.send('❌ פקודה זו יכולה לשמש רק בערוץ הגיוסים!', ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title='🇮🇱 גיוסים לצבא הגנה לישראל',
+        description='זוהי מערכת גיוסים לצבא הגנה לישראל\nלחצו על הכפתור למטה כדי להתחיל במיונים.',
+        color=discord.Color.blue()
+    )
+
+    await ctx.message.delete()
+    await ctx.send(embed=embed, view=RecruitmentView())
+
 
 bot.run(TOKEN)
