@@ -2,16 +2,19 @@ import discord
 from discord.ext import commands
 import os
 import time
+from datetime import datetime
 
 TOKEN = os.environ.get('DISCORD_TOKEN')
 STAFF_ROLE_ID = 1508608045826048011
 RECRUITMENT_CHANNEL_ID = 1509288416435503155
 STAFF_FORMS_CHANNEL_ID = 1509288578763591740
 ACCEPTED_CATEGORY_ID = 1509288878857519386
+TRANSCRIPT_CHANNEL_ID = 1509323770895138967
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
+intents.members = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 bot.remove_command('help')
@@ -93,46 +96,61 @@ async def help_me(ctx):
 
 # =================== מערכת גיוסים ===================
 
-class RecruitmentModal(discord.ui.Modal, title='מיון לצבא ההגנה לישראל'):
-    age = discord.ui.TextInput(
-        label='הגיל שלך',
-        placeholder='לדוגמה: 18',
-        max_length=3
-    )
-    unit = discord.ui.TextInput(
-        label='לאיזה יחידה תרצה להתקבל',
-        placeholder='לדוגמה: חיל רגלים',
-        max_length=100
-    )
-    reason = discord.ui.TextInput(
-        label='למה דווקא אותך ולא מישהו אחר',
-        style=discord.TextStyle.paragraph,
-        placeholder='תאר את עצמך...',
-        max_length=500
-    )
+class CloseInterviewView(discord.ui.View):
+    def __init__(self, applicant, opened_by, form_data):
+        super().__init__(timeout=None)
+        self.applicant = applicant
+        self.opened_by = opened_by
+        self.form_data = form_data
 
-    async def on_submit(self, interaction: discord.Interaction):
-        staff_forms_channel = interaction.guild.get_channel(STAFF_FORMS_CHANNEL_ID)
+    @discord.ui.button(label='🔒 סגירת מיון', style=discord.ButtonStyle.red)
+    async def close_interview(self, interaction: discord.Interaction, button: discord.ui.Button):
+        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        if staff_role not in interaction.user.roles:
+            await interaction.response.send_message('❌ רק צוות יכול לסגור מיון!', ephemeral=True)
+            return
+
+        await interaction.response.send_message(
+            f'🔒 {interaction.user.mention} סגר את המיון, המיון נסגר עוד 10 שניות.'
+        )
+
+        # איסוף תמלול
+        messages = []
+        async for message in interaction.channel.history(limit=500, oldest_first=True):
+            timestamp = message.created_at.strftime('%d/%m/%Y %H:%M:%S')
+            messages.append(f'[{timestamp}] {message.author.display_name}: {message.content}')
+
+        transcript_channel = interaction.guild.get_channel(TRANSCRIPT_CHANNEL_ID)
 
         embed = discord.Embed(
-            title='📋 טופס מיון חדש',
-            color=discord.Color.blue()
+            title=f'📄 תמלול מיון — {self.applicant.display_name}',
+            color=discord.Color.dark_blue(),
+            timestamp=datetime.utcnow()
         )
-        embed.add_field(name='👤 מגיש הטופס', value=interaction.user.mention, inline=False)
-        embed.add_field(name='🎂 גיל', value=self.age.value, inline=True)
-        embed.add_field(name='🎖️ יחידה מבוקשת', value=self.unit.value, inline=True)
-        embed.add_field(name='💬 למה אותך', value=self.reason.value, inline=False)
-        embed.set_footer(text=f'ID: {interaction.user.id}')
+        embed.add_field(name='👤 מועמד', value=self.applicant.mention, inline=True)
+        embed.add_field(name='📋 פתח המיון', value=self.opened_by.mention, inline=True)
+        embed.add_field(name='🔒 סגר המיון', value=interaction.user.mention, inline=True)
+        embed.add_field(name='🎂 גיל', value=self.form_data['age'], inline=True)
+        embed.add_field(name='🎖️ יחידה מבוקשת', value=self.form_data['unit'], inline=True)
+        embed.add_field(name='💬 למה אותו', value=self.form_data['reason'], inline=False)
 
-        view = StaffDecisionView(
-            applicant=interaction.user,
-            age=self.age.value,
-            unit=self.unit.value,
-            reason=self.reason.value
+        transcript_text = '\n'.join(messages) if messages else 'אין הודעות'
+        if len(transcript_text) > 1000:
+            transcript_text = transcript_text[:1000] + '...'
+        embed.add_field(name='📝 תמלול שיחה', value=f'```{transcript_text}```', inline=False)
+
+        await transcript_channel.send(embed=embed)
+
+        for item in self.children:
+            item.disabled = True
+        await interaction.message.edit(view=self)
+
+        await discord.utils.sleep_until(
+            discord.utils.utcnow().__class__.utcnow()
         )
-
-        await staff_forms_channel.send(embed=embed, view=view)
-        await interaction.response.send_message('✅ הטופס שלך נשלח בהצלחה! המתן לתגובת הצוות.', ephemeral=True)
+        import asyncio
+        await asyncio.sleep(10)
+        await interaction.channel.delete()
 
 
 class StaffDecisionView(discord.ui.View):
@@ -164,15 +182,34 @@ class StaffDecisionView(discord.ui.View):
             overwrites=overwrites
         )
 
+        form_data = {
+            'age': self.age,
+            'unit': self.unit,
+            'reason': self.reason
+        }
+
+        close_view = CloseInterviewView(
+            applicant=self.applicant,
+            opened_by=interaction.user,
+            form_data=form_data
+        )
+
         await channel.send(
             f'{self.applicant.mention} כל הכבוד! 🎉\n'
             f'עברת את שלב מיוני הטפסים.\n'
-            f'תצטרך לקבוע עכשיו שיחה עם צוות על מנת לעבור את שלב ב.'
+            f'תצטרך לקבוע עכשיו שיחה עם צוות על מנת לעבור את שלב ב.',
+            view=close_view
         )
+
+        # עדכון embed הצוות
+        original_embed = interaction.message.embeds[0]
+        original_embed.add_field(name='📊 סטטוס', value='✅ התקבל', inline=True)
+        original_embed.add_field(name='👤 טופל על ידי', value=interaction.user.mention, inline=True)
+        original_embed.color = discord.Color.green()
 
         for item in self.children:
             item.disabled = True
-        await interaction.message.edit(view=self)
+        await interaction.message.edit(embed=original_embed, view=self)
         await interaction.response.send_message(f'✅ התקבל! נפתח חדר: {channel.mention}', ephemeral=True)
 
     @discord.ui.button(label='❌ דחייה', style=discord.ButtonStyle.red)
@@ -190,10 +227,60 @@ class StaffDecisionView(discord.ui.View):
         except:
             pass
 
+        # עדכון embed הצוות
+        original_embed = interaction.message.embeds[0]
+        original_embed.add_field(name='📊 סטטוס', value='❌ נדחה', inline=True)
+        original_embed.add_field(name='👤 טופל על ידי', value=interaction.user.mention, inline=True)
+        original_embed.color = discord.Color.red()
+
         for item in self.children:
             item.disabled = True
-        await interaction.message.edit(view=self)
+        await interaction.message.edit(embed=original_embed, view=self)
         await interaction.response.send_message('❌ הטופס נדחה והמשתמש קיבל הודעה.', ephemeral=True)
+
+
+class RecruitmentModal(discord.ui.Modal, title='מיון לצבא ההגנה לישראל'):
+    age = discord.ui.TextInput(
+        label='הגיל שלך',
+        placeholder='לדוגמה: 18',
+        max_length=3
+    )
+    unit = discord.ui.TextInput(
+        label='לאיזה יחידה תרצה להתקבל',
+        placeholder='לדוגמה: חיל רגלים',
+        max_length=100
+    )
+    reason = discord.ui.TextInput(
+        label='למה דווקא אותך ולא מישהו אחר',
+        style=discord.TextStyle.paragraph,
+        placeholder='תאר את עצמך...',
+        max_length=500
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        staff_forms_channel = interaction.guild.get_channel(STAFF_FORMS_CHANNEL_ID)
+
+        embed = discord.Embed(
+            title='📋 טופס מיון חדש',
+            color=discord.Color.blue()
+        )
+        embed.add_field(name='👤 מגיש הטופס', value=interaction.user.mention, inline=False)
+        embed.add_field(name='🎂 גיל', value=self.age.value, inline=True)
+        embed.add_field(name='🎖️ יחידה מבוקשת', value=self.unit.value, inline=True)
+        embed.add_field(name='💬 למה אותך', value=self.reason.value, inline=False)
+        embed.add_field(name='📊 סטטוס', value='⏳ ממתין לטיפול', inline=True)
+        embed.add_field(name='👤 טופל על ידי', value='טרם טופל', inline=True)
+        embed.set_footer(text=f'ID: {interaction.user.id}')
+
+        view = StaffDecisionView(
+            applicant=interaction.user,
+            age=self.age.value,
+            unit=self.unit.value,
+            reason=self.reason.value
+        )
+
+        await staff_forms_channel.send(embed=embed, view=view)
+        await interaction.response.send_message('✅ הטופס שלך נשלח בהצלחה! המתן לתגובת הצוות.', ephemeral=True)
 
 
 class RecruitmentView(discord.ui.View):
