@@ -1,7 +1,6 @@
 import discord
 from discord.ext import commands
 import os
-import time
 import asyncio
 from datetime import datetime
 
@@ -28,73 +27,6 @@ async def on_ready():
 @bot.command()
 async def היי(ctx):
     await ctx.send(f'היי {ctx.author.name}! 👋')
-
-# =================== מערכת עזרה ===================
-
-class HelpButton(discord.ui.View):
-    def __init__(self, voice_channel=None):
-        super().__init__(timeout=None)
-        self.voice_channel = voice_channel
-        if voice_channel:
-            button = discord.ui.Button(
-                label='כניסה לשיחה',
-                style=discord.ButtonStyle.green,
-                emoji='🎙️'
-            )
-            button.callback = self.join_callback
-            self.add_item(button)
-
-    async def join_callback(self, interaction: discord.Interaction):
-        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
-        if staff_role not in interaction.user.roles:
-            await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתור זה!', ephemeral=True)
-            return
-        await interaction.response.send_message(f'🎙️ השיחה: {self.voice_channel.mention}', ephemeral=True)
-
-help_cooldowns = {}
-
-async def send_help(ctx):
-    user_id = ctx.author.id
-    now = time.time()
-
-    if user_id in help_cooldowns:
-        time_left = 45 - (now - help_cooldowns[user_id])
-        if time_left > 0:
-            await ctx.author.send(f'⏳ תוכל להשתמש בפקודה שוב בעוד **{int(time_left)} שניות**!')
-            return
-
-    help_cooldowns[user_id] = now
-
-    voice_channel = None
-    if ctx.author.voice:
-        voice_channel = ctx.author.voice.channel
-
-    staff_role = ctx.guild.get_role(STAFF_ROLE_ID)
-    mention = staff_role.mention if staff_role else 'צוות'
-
-    if voice_channel:
-        msg = f'🆘 {ctx.author.mention} זקוק לעזרה!\n{mention} נא לסייע.\n🎙️ נמצא בשיחה: {voice_channel.mention}'
-    else:
-        msg = f'🆘 {ctx.author.mention} זקוק לעזרה!\n{mention} נא לסייע.'
-
-    view = HelpButton(voice_channel)
-    await ctx.send(msg, view=view)
-
-@bot.command(name='עזרה')
-async def help_he(ctx):
-    await send_help(ctx)
-
-@bot.command(name='h')
-async def help_h(ctx):
-    await send_help(ctx)
-
-@bot.command(name='help')
-async def help_en(ctx):
-    await send_help(ctx)
-
-@bot.command(name='helpme')
-async def help_me(ctx):
-    await send_help(ctx)
 
 # =================== מערכת טפסים ===================
 
@@ -126,7 +58,6 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        # בדיקת גיל
         try:
             age_int = int(self.age.value)
             if age_int < 15:
@@ -136,7 +67,6 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             await interaction.response.send_message('❌ אנא הכנס גיל תקין!', ephemeral=True)
             return
 
-        # בדיקת זמינות
         try:
             avail_int = int(self.availability.value)
             if avail_int < 1 or avail_int > 10:
@@ -176,25 +106,9 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
 
         await staff_forms_channel.send(embed=embed, view=view)
         await interaction.response.send_message(
-            '✅ הטופס שלך נשלח בהצלחה!\n'
-            'אנא המתן לתגובת הצוות.\n\n'
-            '📜 **מדיניות:** אני מסכים/ה לפעול לפי כללי ומדיניות השרת.',
+            '✅ הטופס שלך נשלח בהצלחה!\nאנא המתן לתגובת הצוות.',
             ephemeral=True
         )
-
-
-class PolicyModal(discord.ui.Modal, title='אישור מדיניות'):
-    policy = discord.ui.TextInput(
-        label='שאלות מדיניות',
-        placeholder='אנא רשום: אני מסכים/ה לפעול לפי כללי ומדיניות השרת.',
-        max_length=100
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        if 'מסכים' not in self.policy.value and 'מסכימה' not in self.policy.value:
-            await interaction.response.send_message('❌ עליך להסכים למדיניות השרת כדי להגיש מועמדות!', ephemeral=True)
-            return
-        await interaction.response.send_modal(ApplicationModal())
 
 
 class CloseInterviewView(discord.ui.View):
@@ -357,7 +271,7 @@ class RecruitmentView(discord.ui.View):
 
     @discord.ui.button(label='הגש מועמדות', style=discord.ButtonStyle.primary, emoji='📋')
     async def start_recruitment(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(PolicyModal())
+        await interaction.response.send_modal(ApplicationModal())
 
 
 @bot.command(name='גיוס')
