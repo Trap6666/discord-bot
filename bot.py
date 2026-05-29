@@ -352,7 +352,7 @@ async def recruitment(interaction: discord.Interaction):
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
     embed.set_footer(text='גיל מינימלי: 15 | זמינות: 1-10')
 
-    await interaction.response.send_message('✅', ephemeral=True)
+    await interaction.response.send_message('✅המערכת הופעלה בהצלחה', ephemeral=True)
     await interaction.channel.send(embed=embed, view=RecruitmentView())
 
 
