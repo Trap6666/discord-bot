@@ -347,13 +347,13 @@ async def recruitment(interaction: discord.Interaction):
         title='⚔️ טפסי הצטרפות',
         description='ברוכים הבאים למערכת ההצטרפות!\nלחצו על הכפתור למטה כדי להגיש מועמדות.',
         color=discord.Color.dark_blue()
-    )
+   )
     embed.add_field(name='יחידת הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
     embed.set_footer(text='גיל מינימלי: 15 | זמינות: 1-10')
 
-  await interaction.response.send_message('✅', ephemeral=True, delete_after=0)
-await interaction.channel.send(embed=embed, view=RecruitmentView())
+    await interaction.response.send_message('✅', ephemeral=True)
+    await interaction.channel.send(embed=embed, view=RecruitmentView())
 
 
 bot.run(TOKEN)
