@@ -23,6 +23,7 @@ bot.remove_command('help')
 @bot.event
 async def on_ready():
     bot.add_view(RecruitmentView())
+    await bot.tree.sync()
     print(f'✅ הבוט {bot.user} מחובר ועובד!')
 
 @bot.command()
@@ -115,7 +116,7 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
 class ArmySelectView(discord.ui.View):
     def __init__(self, action, applicant, form_data, original_message):
         super().__init__(timeout=60)
-        self.action = action  # 'accept' or 'reject'
+        self.action = action
         self.applicant = applicant
         self.form_data = form_data
         self.original_message = original_message
@@ -187,7 +188,7 @@ class ArmySelectView(discord.ui.View):
             await self.original_message.edit(embed=original_embed, view=disabled_view)
             await interaction.response.edit_message(content=f'✅ התקבל! נפתח חדר: {channel.mention}', view=None)
 
-        else:  # reject
+        else:
             if army == 'taliban':
                 msg = f"{self.applicant.mention} - 🔴 Your application for the Taliban army has been denied. If you would like to receive more information, please open a ticket."
             else:
@@ -336,12 +337,9 @@ class RecruitmentView(discord.ui.View):
         await interaction.response.send_modal(ApplicationModal())
 
 
-@bot.command(name='גיוס')
-async def recruitment(ctx):
-    if ctx.channel.id != RECRUITMENT_CHANNEL_ID:
-        await ctx.send('❌ פקודה זו יכולה לשמש רק בערוץ הגיוסים!', ephemeral=True)
-        return
-
+@bot.tree.command(name='גיוס', description='שליחת הודעת גיוס עם כפתור הגשת מועמדות')
+@discord.app_commands.default_permissions(administrator=True)
+async def recruitment(interaction: discord.Interaction):
     embed = discord.Embed(
         title='⚔️ טפסי הצטרפות',
         description='ברוכים הבאים למערכת ההצטרפות!\nלחצו על הכפתור למטה כדי להגיש מועמדות.',
@@ -351,8 +349,7 @@ async def recruitment(ctx):
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
     embed.set_footer(text='גיל מינימלי: 15 | זמינות: 1-10')
 
-    await ctx.message.delete()
-    await ctx.send(embed=embed, view=RecruitmentView())
+    await interaction.response.send_message(embed=embed, view=RecruitmentView())
 
 
 bot.run(TOKEN)
