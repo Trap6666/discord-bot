@@ -26,6 +26,7 @@ async def on_ready():
     bot.add_view(RecruitmentView())
     try:
         guild = discord.Object(id=GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
         print(f'✅ הבוט {bot.user} מחובר! סונכרנו {len(synced)} פקודות.')
     except Exception as e:
