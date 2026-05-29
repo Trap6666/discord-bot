@@ -5,6 +5,7 @@ import asyncio
 from datetime import datetime
 
 TOKEN = os.environ.get('DISCORD_TOKEN')
+GUILD_ID = 1508162182909526127
 STAFF_ROLE_ID = 1508608045826048011
 RECRUITMENT_CHANNEL_ID = 1509288416435503155
 STAFF_FORMS_CHANNEL_ID = 1509288578763591740
@@ -23,14 +24,14 @@ bot.remove_command('help')
 @bot.event
 async def on_ready():
     bot.add_view(RecruitmentView())
-    await bot.tree.sync()
+    guild = discord.Object(id=GUILD_ID)
+    bot.tree.copy_global_to(guild=guild)
+    await bot.tree.sync(guild=guild)
     print(f'✅ הבוט {bot.user} מחובר ועובד!')
 
 @bot.command()
 async def היי(ctx):
     await ctx.send(f'היי {ctx.author.name}! 👋')
-
-# =================== מערכת טפסים ===================
 
 class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות'):
     first_name = discord.ui.TextInput(
@@ -345,7 +346,7 @@ async def recruitment(interaction: discord.Interaction):
         description='ברוכים הבאים למערכת ההצטרפות!\nלחצו על הכפתור למטה כדי להגיש מועמדות.',
         color=discord.Color.dark_blue()
     )
-    embed.add_field(name='🇺🇸 יחידת הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
+    embed.add_field(name='יחידת הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
     embed.set_footer(text='גיל מינימלי: 15 | זמינות: 1-10')
 
