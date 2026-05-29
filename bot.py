@@ -10,6 +10,7 @@ RECRUITMENT_CHANNEL_ID = 1509288416435503155
 STAFF_FORMS_CHANNEL_ID = 1509288578763591740
 ACCEPTED_CATEGORY_ID = 1509288878857519386
 TRANSCRIPT_CHANNEL_ID = 1509323770895138967
+RESULTS_CHANNEL_ID = 1509946894166786058
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -111,6 +112,110 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
         )
 
 
+class ArmySelectView(discord.ui.View):
+    def __init__(self, action, applicant, form_data, original_message):
+        super().__init__(timeout=60)
+        self.action = action  # 'accept' or 'reject'
+        self.applicant = applicant
+        self.form_data = form_data
+        self.original_message = original_message
+
+    @discord.ui.button(label='טאליבאן ☪️', style=discord.ButtonStyle.grey)
+    async def taliban(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle(interaction, 'taliban')
+
+    @discord.ui.button(label='יחידת הריינג\'רים 75 🇺🇸', style=discord.ButtonStyle.grey)
+    async def rangers(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle(interaction, 'rangers')
+
+    async def handle(self, interaction: discord.Interaction, army: str):
+        results_channel = interaction.guild.get_channel(RESULTS_CHANNEL_ID)
+
+        if self.action == 'accept':
+            if army == 'taliban':
+                msg = f"{self.applicant.mention} - 🟢 Your application for the Taliban army has been approved. Please check the Stage 2 room that has opened for you to proceed."
+            else:
+                msg = f"{self.applicant.mention} - 🟢 Your application for the U.S Army has been approved. Please check the Stage 2 room that has opened for you to proceed."
+
+            await results_channel.send(msg)
+
+            category = interaction.guild.get_channel(ACCEPTED_CATEGORY_ID)
+            staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+
+            overwrites = {
+                interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                self.applicant: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+                staff_role: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+            }
+
+            channel = await interaction.guild.create_text_channel(
+                name=f'מיון-{self.applicant.name}',
+                category=category,
+                overwrites=overwrites
+            )
+
+            close_view = CloseInterviewView(
+                applicant=self.applicant,
+                opened_by=interaction.user,
+                form_data=self.form_data
+            )
+
+            await channel.send(
+                f'{self.applicant.mention} כל הכבוד! 🎉\n'
+                f'עברת את שלב מיוני הטפסים.\n'
+                f'תצטרך לקבוע עכשיו שיחה עם צוות על מנת לעבור את שלב ב.',
+                view=close_view
+            )
+
+            original_embed = self.original_message.embeds[0]
+            original_embed.set_field_at(
+                original_embed.fields.index(next(f for f in original_embed.fields if f.name == '📊 סטטוס')),
+                name='📊 סטטוס', value='✅ התקבל', inline=True
+            )
+            original_embed.set_field_at(
+                original_embed.fields.index(next(f for f in original_embed.fields if f.name == '👤 טופל על ידי')),
+                name='👤 טופל על ידי', value=interaction.user.mention, inline=True
+            )
+            original_embed.color = discord.Color.green()
+
+            disabled_view = StaffDecisionView.__new__(StaffDecisionView)
+            discord.ui.View.__init__(disabled_view, timeout=None)
+            for item in StaffDecisionView(self.applicant, '', '', '', '', '').children:
+                item.disabled = True
+                disabled_view.add_item(item)
+
+            await self.original_message.edit(embed=original_embed, view=disabled_view)
+            await interaction.response.edit_message(content=f'✅ התקבל! נפתח חדר: {channel.mention}', view=None)
+
+        else:  # reject
+            if army == 'taliban':
+                msg = f"{self.applicant.mention} - 🔴 Your application for the Taliban army has been denied. If you would like to receive more information, please open a ticket."
+            else:
+                msg = f"{self.applicant.mention} - 🔴 Your application for the U.S. Army has been denied. If you would like to receive more information, please open a ticket."
+
+            await results_channel.send(msg)
+
+            original_embed = self.original_message.embeds[0]
+            original_embed.set_field_at(
+                original_embed.fields.index(next(f for f in original_embed.fields if f.name == '📊 סטטוס')),
+                name='📊 סטטוס', value='❌ נדחה', inline=True
+            )
+            original_embed.set_field_at(
+                original_embed.fields.index(next(f for f in original_embed.fields if f.name == '👤 טופל על ידי')),
+                name='👤 טופל על ידי', value=interaction.user.mention, inline=True
+            )
+            original_embed.color = discord.Color.red()
+
+            disabled_view = StaffDecisionView.__new__(StaffDecisionView)
+            discord.ui.View.__init__(disabled_view, timeout=None)
+            for item in StaffDecisionView(self.applicant, '', '', '', '', '').children:
+                item.disabled = True
+                disabled_view.add_item(item)
+
+            await self.original_message.edit(embed=original_embed, view=disabled_view)
+            await interaction.response.edit_message(content='❌ הטופס נדחה והמשתמש קיבל הודעה.', view=None)
+
+
 class CloseInterviewView(discord.ui.View):
     def __init__(self, applicant, opened_by, form_data):
         super().__init__(timeout=None)
@@ -182,19 +287,28 @@ class StaffDecisionView(discord.ui.View):
             await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתורים אלו!', ephemeral=True)
             return
 
-        category = interaction.guild.get_channel(ACCEPTED_CATEGORY_ID)
-
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            self.applicant: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-            staff_role: discord.PermissionOverwrite(view_channel=True, send_messages=True),
+        form_data = {
+            'first_name': self.first_name,
+            'army_choice': self.army_choice,
+            'steam_link': self.steam_link,
+            'age': self.age,
+            'availability': self.availability
         }
 
-        channel = await interaction.guild.create_text_channel(
-            name=f'מיון-{self.applicant.name}',
-            category=category,
-            overwrites=overwrites
+        army_view = ArmySelectView(
+            action='accept',
+            applicant=self.applicant,
+            form_data=form_data,
+            original_message=interaction.message
         )
+        await interaction.response.send_message('⚔️ לאיזה צבא התקבל המועמד?', view=army_view, ephemeral=True)
+
+    @discord.ui.button(label='❌ דחייה', style=discord.ButtonStyle.red)
+    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
+        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        if staff_role not in interaction.user.roles:
+            await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתורים אלו!', ephemeral=True)
+            return
 
         form_data = {
             'first_name': self.first_name,
@@ -204,65 +318,13 @@ class StaffDecisionView(discord.ui.View):
             'availability': self.availability
         }
 
-        close_view = CloseInterviewView(
+        army_view = ArmySelectView(
+            action='reject',
             applicant=self.applicant,
-            opened_by=interaction.user,
-            form_data=form_data
+            form_data=form_data,
+            original_message=interaction.message
         )
-
-        await channel.send(
-            f'{self.applicant.mention} כל הכבוד! 🎉\n'
-            f'עברת את שלב מיוני הטפסים.\n'
-            f'תצטרך לקבוע עכשיו שיחה עם צוות על מנת לעבור את שלב ב.',
-            view=close_view
-        )
-
-        original_embed = interaction.message.embeds[0]
-        original_embed.set_field_at(
-            original_embed.fields.index(next(f for f in original_embed.fields if f.name == '📊 סטטוס')),
-            name='📊 סטטוס', value='✅ התקבל', inline=True
-        )
-        original_embed.set_field_at(
-            original_embed.fields.index(next(f for f in original_embed.fields if f.name == '👤 טופל על ידי')),
-            name='👤 טופל על ידי', value=interaction.user.mention, inline=True
-        )
-        original_embed.color = discord.Color.green()
-
-        for item in self.children:
-            item.disabled = True
-        await interaction.message.edit(embed=original_embed, view=self)
-        await interaction.response.send_message(f'✅ התקבל! נפתח חדר: {channel.mention}', ephemeral=True)
-
-    @discord.ui.button(label='❌ דחייה', style=discord.ButtonStyle.red)
-    async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
-        if staff_role not in interaction.user.roles:
-            await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתורים אלו!', ephemeral=True)
-            return
-
-        try:
-            await self.applicant.send(
-                '❌ טופס המועמדות שלך נדחה.\n'
-                'אם תרצה מידע נוסף, אתה מוזמן לפתוח טיקט.'
-            )
-        except:
-            pass
-
-        original_embed = interaction.message.embeds[0]
-        original_embed.set_field_at(
-            original_embed.fields.index(next(f for f in original_embed.fields if f.name == '📊 סטטוס')),
-            name='📊 סטטוס', value='❌ נדחה', inline=True
-        )
-        original_embed.set_field_at(
-            original_embed.fields.index(next(f for f in original_embed.fields if f.name == '👤 טופל על ידי')),
-            name='👤 טופל על ידי', value=interaction.user.mention, inline=True
-        )
-        original_embed.color = discord.Color.red()
-
-        for item in self.children:
-            item.disabled = True
-        await interaction.message.edit(embed=original_embed, view=self)
-        await interaction.response.send_message('❌ הטופס נדחה והמשתמש קיבל הודעה.', ephemeral=True)
+        await interaction.response.send_message('⚔️ לאיזה צבא שייך המועמד שנדחה?', view=army_view, ephemeral=True)
 
 
 class RecruitmentView(discord.ui.View):
