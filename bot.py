@@ -24,10 +24,12 @@ bot.remove_command('help')
 @bot.event
 async def on_ready():
     bot.add_view(RecruitmentView())
-    guild = discord.Object(id=GUILD_ID)
-    bot.tree.copy_global_to(guild=guild)
-    await bot.tree.sync(guild=guild)
-    print(f'✅ הבוט {bot.user} מחובר ועובד!')
+    try:
+        guild = discord.Object(id=GUILD_ID)
+        synced = await bot.tree.sync(guild=guild)
+        print(f'✅ הבוט {bot.user} מחובר! סונכרנו {len(synced)} פקודות.')
+    except Exception as e:
+        print(f'שגיאה בסנכרון: {e}')
 
 @bot.command()
 async def היי(ctx):
@@ -80,7 +82,6 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             return
 
         staff_forms_channel = interaction.guild.get_channel(STAFF_FORMS_CHANNEL_ID)
-
         color = discord.Color.green() if 'טאליבאן' in self.army_choice.value else discord.Color.blue()
 
         embed = discord.Embed(
@@ -333,7 +334,7 @@ class RecruitmentView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label='הגש מועמדות', style=discord.ButtonStyle.primary, emoji='📋')
+    @discord.ui.button(label='הגש מועמדות', style=discord.ButtonStyle.primary, emoji='📋', custom_id='recruitment_button')
     async def start_recruitment(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ApplicationModal())
 
