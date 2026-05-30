@@ -29,9 +29,10 @@ async def on_ready():
         bot.tree.copy_global_to(guild=guild)
         synced = await bot.tree.sync(guild=guild)
         print(f'✅ הבוט {bot.user} מחובר! סונכרנו {len(synced)} פקודות.')
+        for cmd in synced:
+            print(f'  - {cmd.name}')
     except Exception as e:
         print(f'שגיאה בסנכרון: {e}')
-
 @bot.command()
 async def היי(ctx):
     await ctx.send(f'היי {ctx.author.name}! 👋')
@@ -355,5 +356,91 @@ async def recruitment(interaction: discord.Interaction):
     await interaction.response.send_message('✅המערכת הופעלה בהצלחה', ephemeral=True)
     await interaction.channel.send(embed=embed, view=RecruitmentView())
 
+@bot.tree.command(name='setup', description='הגדרת מערכת הגיוסים')
+@discord.app_commands.default_permissions(administrator=True)
+async def setup(interaction: discord.Interaction):
+    await interaction.response.send_message('⚙️ מתחילים בהגדרת המערכת! אנא ענה על השאלות הבאות.\n\nשלח את ה־**mention** של רול הצוות (לדוגמה: @צוות)', ephemeral=True)
+
+    def check(m):
+        return m.author == interaction.user and m.channel == interaction.channel
+
+    try:
+        # רול צוות
+        msg = await bot.wait_for('message', check=check, timeout=60)
+        if not msg.role_mentions:
+            await interaction.followup.send('❌ לא זוהה רול, נסה שוב עם /setup', ephemeral=True)
+            return
+        staff_role_id = msg.role_mentions[0].id
+        await msg.delete()
+
+        # צ'אט גיוסים
+        await interaction.followup.send('✅ רול צוות נשמר!\n\nעכשיו שלח **mention** של צ\'אט הגיוסים (לדוגמה: #גיוסים)', ephemeral=True)
+        msg = await bot.wait_for('message', check=check, timeout=60)
+        if not msg.channel_mentions:
+            await interaction.followup.send('❌ לא זוהה צ\'אט, נסה שוב עם /setup', ephemeral=True)
+            return
+        recruitment_channel_id = msg.channel_mentions[0].id
+        await msg.delete()
+
+        # צ'אט טפסים
+        await interaction.followup.send('✅ צ\'אט גיוסים נשמר!\n\nעכשיו שלח **mention** של צ\'אט הטפסים לצוות (לדוגמה: #טפסים)', ephemeral=True)
+        msg = await bot.wait_for('message', check=check, timeout=60)
+        if not msg.channel_mentions:
+            await interaction.followup.send('❌ לא זוהה צ\'אט, נסה שוב עם /setup', ephemeral=True)
+            return
+        staff_forms_channel_id = msg.channel_mentions[0].id
+        await msg.delete()
+
+        # קטגוריה
+        await interaction.followup.send('✅ צ\'אט טפסים נשמר!\n\nעכשיו שלח את ה־**ID** של הקטגוריה לחדרי מיון', ephemeral=True)
+        msg = await bot.wait_for('message', check=check, timeout=60)
+        try:
+            accepted_category_id = int(msg.content.strip())
+        except ValueError:
+            await interaction.followup.send('❌ ID לא תקין, נסה שוב עם /setup', ephemeral=True)
+            return
+        await msg.delete()
+
+        # צ'אט תמלולים
+        await interaction.followup.send('✅ קטגוריה נשמרה!\n\nעכשיו שלח **mention** של צ\'אט התמלולים (לדוגמה: #תמלולים)', ephemeral=True)
+        msg = await bot.wait_for('message', check=check, timeout=60)
+        if not msg.channel_mentions:
+            await interaction.followup.send('❌ לא זוהה צ\'אט, נסה שוב עם /setup', ephemeral=True)
+            return
+        transcript_channel_id = msg.channel_mentions[0].id
+        await msg.delete()
+
+        # צ'אט תוצאות
+        await interaction.followup.send('✅ צ\'אט תמלולים נשמר!\n\nעכשיו שלח **mention** של צ\'אט התוצאות (לדוגמה: #תוצאות)', ephemeral=True)
+        msg = await bot.wait_for('message', check=check, timeout=60)
+        if not msg.channel_mentions:
+            await interaction.followup.send('❌ לא זוהה צ\'אט, נסה שוב עם /setup', ephemeral=True)
+            return
+        results_channel_id = msg.channel_mentions[0].id
+        await msg.delete()
+
+        # שמירת ההגדרות
+        global STAFF_ROLE_ID, RECRUITMENT_CHANNEL_ID, STAFF_FORMS_CHANNEL_ID, ACCEPTED_CATEGORY_ID, TRANSCRIPT_CHANNEL_ID, RESULTS_CHANNEL_ID
+        STAFF_ROLE_ID = staff_role_id
+        RECRUITMENT_CHANNEL_ID = recruitment_channel_id
+        STAFF_FORMS_CHANNEL_ID = staff_forms_channel_id
+        ACCEPTED_CATEGORY_ID = accepted_category_id
+        TRANSCRIPT_CHANNEL_ID = transcript_channel_id
+        RESULTS_CHANNEL_ID = results_channel_id
+
+        await interaction.followup.send(
+            '✅ **ההגדרות נשמרו בהצלחה!**\n\n'
+            f'👮 רול צוות: <@&{staff_role_id}>\n'
+            f'📢 צ\'אט גיוסים: <#{recruitment_channel_id}>\n'
+            f'📋 צ\'אט טפסים: <#{staff_forms_channel_id}>\n'
+            f'🗂️ קטגוריה: {accepted_category_id}\n'
+            f'📄 צ\'אט תמלולים: <#{transcript_channel_id}>\n'
+            f'📊 צ\'אט תוצאות: <#{results_channel_id}>\n\n'
+            f'עכשיו תוכל להריץ **/גיוס** לשליחת הודעת הגיוס!',
+            ephemeral=True
+        )
+
+    except asyncio.TimeoutError:
+        await interaction.followup.send('❌ פג הזמן! נסה שוב עם /setup', ephemeral=True)
 
 bot.run(TOKEN)
