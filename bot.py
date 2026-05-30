@@ -137,9 +137,9 @@ class ArmySelectView(discord.ui.View):
 
         if self.action == 'accept':
             if army == 'taliban':
-                msg = f"{self.applicant.mention} - 🟢 Your application for the Taliban army has been approved. Please check the Stage 2 room that has opened for you to proceed."
+                msg = f"{self.applicant.mention} **- 🟢 Your application for the Taliban army has been approved. Please check the Stage 2 room that has opened for you to proceed.**"
             else:
-                msg = f"{self.applicant.mention} - 🟢 Your application for the U.S Army has been approved. Please check the Stage 2 room that has opened for you to proceed."
+                msg = f"{self.applicant.mention} **- 🟢 Your application for the U.S Army has been approved. Please check the Stage 2 room that has opened for you to proceed.**"
 
             await results_channel.send(msg)
 
@@ -193,9 +193,9 @@ class ArmySelectView(discord.ui.View):
 
         else:
             if army == 'taliban':
-                msg = f"{self.applicant.mention} - 🔴 Your application for the Taliban army has been denied. If you would like to receive more information, please open a ticket."
+                msg = f"{self.applicant.mention} **- 🔴 Your application for the Taliban army has been denied. If you would like to receive more information, please open a ticket.**"
             else:
-                msg = f"{self.applicant.mention} - 🔴 Your application for the U.S. Army has been denied. If you would like to receive more information, please open a ticket."
+                msg = f"{self.applicant.mention} **- 🔴 Your application for the U.S. Army has been denied. If you would like to receive more information, please open a ticket.**"
 
             await results_channel.send(msg)
 
