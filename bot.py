@@ -434,7 +434,6 @@ async def invite(interaction: discord.Interaction, שחקן: discord.Member):
         try:
             await שחקן.send(
                 f'👋 היי {שחקן.name}!\n'
-                f'קיבלת הזמנה להצטרף לשרת שלנו!\n\n'
                 f'🔗 קישור: {invite_link.url}\n\n'
                 f'⚠️ הקישור תקף לשימוש אחד בלבד!'
             )
