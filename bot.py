@@ -416,5 +416,32 @@ async def unsetup(interaction: discord.Interaction):
         '✅ כל ההגדרות אופסו בהצלחה!\nתוכל להגדיר מחדש עם **/setup**',
         ephemeral=True
     )
+@bot.tree.command(name='invite', description='שליחת קישור הצטרפות לשחקן')
+@discord.app_commands.default_permissions(manage_roles=True)
+async def invite(interaction: discord.Interaction, שחקן: discord.Member):
+    try:
+        channel = interaction.client.get_channel(1512884361698213980)
+        if not channel:
+            await interaction.response.send_message('❌ לא נמצא הצ\'אט!', ephemeral=True)
+            return
 
+        invite_link = await channel.create_invite(
+            max_uses=1,
+            unique=True,
+            reason=f'Invite נשלח על ידי {interaction.user} ל־{שחקן}'
+        )
+
+        try:
+            await שחקן.send(
+                f'👋 היי {שחקן.name}!\n'
+                f'קיבלת הזמנה להצטרף לשרת שלנו!\n\n'
+                f'🔗 קישור: {invite_link.url}\n\n'
+                f'⚠️ הקישור תקף לשימוש אחד בלבד!'
+            )
+            await interaction.response.send_message(f'✅ הקישור נשלח ל־{שחקן.mention} בהצלחה!', ephemeral=True)
+        except:
+            await interaction.response.send_message(f'❌ לא ניתן לשלוח הודעה פרטית ל־{שחקן.mention}!', ephemeral=True)
+
+    except Exception as e:
+        await interaction.response.send_message(f'❌ שגיאה: {e}', ephemeral=True)
 bot.run(TOKEN)
