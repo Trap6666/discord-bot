@@ -1,17 +1,44 @@
 import discord
 from discord.ext import commands
 import os
+import json
 import asyncio
 from datetime import datetime
+from typing import Optional
 
 TOKEN = os.environ.get('DISCORD_TOKEN')
-GUILD_ID = 1508162182909526127
-STAFF_ROLE_ID = 1508608045826048011
-RECRUITMENT_CHANNEL_ID = 1509288416435503155
-STAFF_FORMS_CHANNEL_ID = 1509288578763591740
-ACCEPTED_CATEGORY_ID = 1509288878857519386
-TRANSCRIPT_CHANNEL_ID = 1509323770895138967
-RESULTS_CHANNEL_ID = 1509946894166786058
+
+CONFIG_FILE = 'guild_configs.json'
+
+
+def load_configs():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return {int(k): v for k, v in data.items()}
+    return {}
+
+
+def save_configs():
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump({str(k): v for k, v in guild_configs.items()}, f, ensure_ascii=False, indent=2)
+
+
+# guild_configs[guild_id] = {
+#   'staff_role_id': int,
+#   'recruitment_channel_id': int,
+#   'staff_forms_channel_id': int,
+#   'accepted_category_id': int,
+#   'transcript_channel_id': int,
+#   'results_channel_id': int,
+#   'invite_channel_id': int (optional)
+# }
+guild_configs = load_configs()
+
+
+def get_config(guild_id):
+    return guild_configs.get(guild_id)
+
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -21,21 +48,23 @@ intents.members = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 bot.remove_command('help')
 
+
 @bot.event
 async def on_ready():
     bot.add_view(RecruitmentView())
     try:
-        guild = discord.Object(id=GUILD_ID)
-        bot.tree.copy_global_to(guild=guild)
-        synced = await bot.tree.sync(guild=guild)
-        print(f'✅ הבוט {bot.user} מחובר! סונכרנו {len(synced)} פקודות.')
+        synced = await bot.tree.sync()
+        print(f'✅ הבוט {bot.user} מחובר! סונכרנו {len(synced)} פקודות גלובליות.')
         for cmd in synced:
             print(f'  - {cmd.name}')
     except Exception as e:
         print(f'שגיאה בסנכרון: {e}')
+
+
 @bot.command()
 async def היי(ctx):
     await ctx.send(f'היי {ctx.author.name}! 👋')
+
 
 class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות'):
     first_name = discord.ui.TextInput(
@@ -65,6 +94,14 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        config = get_config(interaction.guild.id)
+        if not config:
+            await interaction.response.send_message(
+                '❌ המערכת לא הוגדרה בשרת הזה! בקש מאדמין להריץ /setup',
+                ephemeral=True
+            )
+            return
+
         try:
             age_int = int(self.age.value)
             if age_int < 15:
@@ -83,7 +120,14 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             await interaction.response.send_message('❌ אנא הכנס זמינות תקינה בין 1 ל־10!', ephemeral=True)
             return
 
-        staff_forms_channel = interaction.guild.get_channel(STAFF_FORMS_CHANNEL_ID)
+        staff_forms_channel = interaction.guild.get_channel(config['staff_forms_channel_id'])
+        if staff_forms_channel is None:
+            await interaction.response.send_message(
+                '❌ ערוץ הטפסים לא נמצא! בקש מאדמין להריץ /setup מחדש.',
+                ephemeral=True
+            )
+            return
+
         color = discord.Color.green() if 'טאליבאן' in self.army_choice.value else discord.Color.blue()
 
         embed = discord.Embed(
@@ -134,7 +178,14 @@ class ArmySelectView(discord.ui.View):
         await self.handle(interaction, 'rangers')
 
     async def handle(self, interaction: discord.Interaction, army: str):
-        results_channel = interaction.guild.get_channel(RESULTS_CHANNEL_ID)
+        config = get_config(interaction.guild.id)
+        if not config:
+            await interaction.response.send_message(
+                '❌ המערכת לא הוגדרה בשרת הזה!', ephemeral=True
+            )
+            return
+
+        results_channel = interaction.guild.get_channel(config['results_channel_id'])
 
         if self.action == 'accept':
             if army == 'taliban':
@@ -142,16 +193,18 @@ class ArmySelectView(discord.ui.View):
             else:
                 msg = f"{self.applicant.mention} **- 🟢 Your application for the U.S Army has been approved. Please check the Stage 2 room that has opened for you to proceed.**"
 
-            await results_channel.send(msg)
+            if results_channel:
+                await results_channel.send(msg)
 
-            category = interaction.guild.get_channel(ACCEPTED_CATEGORY_ID)
-            staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+            category = interaction.guild.get_channel(config['accepted_category_id'])
+            staff_role = interaction.guild.get_role(config['staff_role_id'])
 
             overwrites = {
                 interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
                 self.applicant: discord.PermissionOverwrite(view_channel=True, send_messages=True),
-                staff_role: discord.PermissionOverwrite(view_channel=True, send_messages=True),
             }
+            if staff_role:
+                overwrites[staff_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True)
 
             channel = await interaction.guild.create_text_channel(
                 name=f'מיון-{self.applicant.name}',
@@ -183,8 +236,7 @@ class ArmySelectView(discord.ui.View):
             )
             original_embed.color = discord.Color.green()
 
-            disabled_view = StaffDecisionView.__new__(StaffDecisionView)
-            discord.ui.View.__init__(disabled_view, timeout=None)
+            disabled_view = discord.ui.View(timeout=None)
             for item in StaffDecisionView(self.applicant, '', '', '', '', '').children:
                 item.disabled = True
                 disabled_view.add_item(item)
@@ -198,7 +250,8 @@ class ArmySelectView(discord.ui.View):
             else:
                 msg = f"{self.applicant.mention} **- 🔴 Your application for the U.S. Army has been denied. If you would like to receive more information, please open a ticket.**"
 
-            await results_channel.send(msg)
+            if results_channel:
+                await results_channel.send(msg)
 
             original_embed = self.original_message.embeds[0]
             original_embed.set_field_at(
@@ -211,8 +264,7 @@ class ArmySelectView(discord.ui.View):
             )
             original_embed.color = discord.Color.red()
 
-            disabled_view = StaffDecisionView.__new__(StaffDecisionView)
-            discord.ui.View.__init__(disabled_view, timeout=None)
+            disabled_view = discord.ui.View(timeout=None)
             for item in StaffDecisionView(self.applicant, '', '', '', '', '').children:
                 item.disabled = True
                 disabled_view.add_item(item)
@@ -230,7 +282,12 @@ class CloseInterviewView(discord.ui.View):
 
     @discord.ui.button(label='🔒 סגירת מיון', style=discord.ButtonStyle.red)
     async def close_interview(self, interaction: discord.Interaction, button: discord.ui.Button):
-        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        config = get_config(interaction.guild.id)
+        if not config:
+            await interaction.response.send_message('❌ המערכת לא הוגדרה בשרת הזה!', ephemeral=True)
+            return
+
+        staff_role = interaction.guild.get_role(config['staff_role_id'])
         if staff_role not in interaction.user.roles:
             await interaction.response.send_message('❌ רק צוות יכול לסגור מיון!', ephemeral=True)
             return
@@ -244,7 +301,7 @@ class CloseInterviewView(discord.ui.View):
             timestamp = message.created_at.strftime('%d/%m/%Y %H:%M:%S')
             messages.append(f'[{timestamp}] {message.author.display_name}: {message.content}')
 
-        transcript_channel = interaction.guild.get_channel(TRANSCRIPT_CHANNEL_ID)
+        transcript_channel = interaction.guild.get_channel(config['transcript_channel_id'])
 
         embed = discord.Embed(
             title=f'📄 תמלול מיון — {self.applicant.display_name}',
@@ -265,7 +322,8 @@ class CloseInterviewView(discord.ui.View):
             transcript_text = transcript_text[:1000] + '...'
         embed.add_field(name='📝 תמלול שיחה', value=f'```{transcript_text}```', inline=False)
 
-        await transcript_channel.send(embed=embed)
+        if transcript_channel:
+            await transcript_channel.send(embed=embed)
 
         for item in self.children:
             item.disabled = True
@@ -287,7 +345,12 @@ class StaffDecisionView(discord.ui.View):
 
     @discord.ui.button(label='✅ קבלה', style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
-        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        config = get_config(interaction.guild.id)
+        if not config:
+            await interaction.response.send_message('❌ המערכת לא הוגדרה בשרת הזה!', ephemeral=True)
+            return
+
+        staff_role = interaction.guild.get_role(config['staff_role_id'])
         if staff_role not in interaction.user.roles:
             await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתורים אלו!', ephemeral=True)
             return
@@ -310,7 +373,12 @@ class StaffDecisionView(discord.ui.View):
 
     @discord.ui.button(label='❌ דחייה', style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
-        staff_role = interaction.guild.get_role(STAFF_ROLE_ID)
+        config = get_config(interaction.guild.id)
+        if not config:
+            await interaction.response.send_message('❌ המערכת לא הוגדרה בשרת הזה!', ephemeral=True)
+            return
+
+        staff_role = interaction.guild.get_role(config['staff_role_id'])
         if staff_role not in interaction.user.roles:
             await interaction.response.send_message('❌ רק צוות יכול להשתמש בכפתורים אלו!', ephemeral=True)
             return
@@ -344,11 +412,19 @@ class RecruitmentView(discord.ui.View):
 @bot.tree.command(name='גיוס', description='שליחת הודעת גיוס עם כפתור הגשת מועמדות')
 @discord.app_commands.default_permissions(administrator=True)
 async def recruitment(interaction: discord.Interaction):
+    config = get_config(interaction.guild.id)
+    if not config:
+        await interaction.response.send_message(
+            '❌ המערכת לא הוגדרה בשרת הזה! הרץ קודם /setup',
+            ephemeral=True
+        )
+        return
+
     embed = discord.Embed(
         title='⚔️ טפסי הצטרפות',
         description='ברוכים הבאים למערכת ההצטרפות!\nלחצו על הכפתור למטה כדי להגיש מועמדות.',
         color=discord.Color.dark_blue()
-   )
+    )
     embed.add_field(name='יחידת הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
     embed.set_footer(text='גיל מינימלי: 15 | זמינות: 1-10')
@@ -366,35 +442,41 @@ async def setup(
     staff_forms_channel: discord.TextChannel,
     accepted_category: str,
     transcript_channel: discord.TextChannel,
-    results_channel: discord.TextChannel
+    results_channel: discord.TextChannel,
+    invite_channel: Optional[discord.TextChannel] = None
 ):
-    global STAFF_ROLE_ID, RECRUITMENT_CHANNEL_ID, STAFF_FORMS_CHANNEL_ID, ACCEPTED_CATEGORY_ID, TRANSCRIPT_CHANNEL_ID, RESULTS_CHANNEL_ID
-
     try:
         category_id = int(accepted_category)
         category = interaction.guild.get_channel(category_id)
-        if not category:
+        if not category or not isinstance(category, discord.CategoryChannel):
             await interaction.response.send_message('❌ קטגוריה לא נמצאה! בדוק את ה־ID.', ephemeral=True)
             return
     except ValueError:
         await interaction.response.send_message('❌ ID קטגוריה לא תקין!', ephemeral=True)
         return
 
-    STAFF_ROLE_ID = staff_role.id
-    RECRUITMENT_CHANNEL_ID = recruitment_channel.id
-    STAFF_FORMS_CHANNEL_ID = staff_forms_channel.id
-    ACCEPTED_CATEGORY_ID = category_id
-    TRANSCRIPT_CHANNEL_ID = transcript_channel.id
-    RESULTS_CHANNEL_ID = results_channel.id
+    guild_configs[interaction.guild.id] = {
+        'staff_role_id': staff_role.id,
+        'recruitment_channel_id': recruitment_channel.id,
+        'staff_forms_channel_id': staff_forms_channel.id,
+        'accepted_category_id': category_id,
+        'transcript_channel_id': transcript_channel.id,
+        'results_channel_id': results_channel.id,
+        'invite_channel_id': invite_channel.id if invite_channel else None,
+    }
+    save_configs()
+
+    invite_text = invite_channel.mention if invite_channel else 'לא הוגדר'
 
     await interaction.response.send_message(
-        '✅ **ההגדרות נשמרו בהצלחה!**\n\n'
+        '✅ **ההגדרות נשמרו בהצלחה לשרת הזה!**\n\n'
         f'👮 רול צוות: {staff_role.mention}\n'
         f'📢 צ\'אט גיוסים: {recruitment_channel.mention}\n'
         f'📋 צ\'אט טפסים: {staff_forms_channel.mention}\n'
         f'🗂️ קטגוריה: {category.name}\n'
         f'📄 צ\'אט תמלולים: {transcript_channel.mention}\n'
-        f'📊 צ\'אט תוצאות: {results_channel.mention}\n\n'
+        f'📊 צ\'אט תוצאות: {results_channel.mention}\n'
+        f'🔗 צ\'אט הזמנות: {invite_text}\n\n'
         f'עכשיו תוכל להריץ **/גיוס** לשליחת הודעת הגיוס!',
         ephemeral=True
     )
@@ -403,24 +485,29 @@ async def setup(
 @bot.tree.command(name='unsetup', description='איפוס הגדרות מערכת הגיוסים')
 @discord.app_commands.default_permissions(administrator=True)
 async def unsetup(interaction: discord.Interaction):
-    global STAFF_ROLE_ID, RECRUITMENT_CHANNEL_ID, STAFF_FORMS_CHANNEL_ID, ACCEPTED_CATEGORY_ID, TRANSCRIPT_CHANNEL_ID, RESULTS_CHANNEL_ID
-
-    STAFF_ROLE_ID = None
-    RECRUITMENT_CHANNEL_ID = None
-    STAFF_FORMS_CHANNEL_ID = None
-    ACCEPTED_CATEGORY_ID = None
-    TRANSCRIPT_CHANNEL_ID = None
-    RESULTS_CHANNEL_ID = None
+    if interaction.guild.id in guild_configs:
+        del guild_configs[interaction.guild.id]
+        save_configs()
 
     await interaction.response.send_message(
-        '✅ כל ההגדרות אופסו בהצלחה!\nתוכל להגדיר מחדש עם **/setup**',
+        '✅ כל ההגדרות אופסו בהצלחה לשרת הזה!\nתוכל להגדיר מחדש עם **/setup**',
         ephemeral=True
     )
+
+
 @bot.tree.command(name='invite', description='שליחת קישור הצטרפות לשחקן')
 @discord.app_commands.default_permissions(manage_roles=True)
 async def invite(interaction: discord.Interaction, שחקן: discord.Member):
+    config = get_config(interaction.guild.id)
+    if not config or not config.get('invite_channel_id'):
+        await interaction.response.send_message(
+            '❌ ערוץ ההזמנות לא הוגדר בשרת הזה! הרץ /setup והגדר אותו.',
+            ephemeral=True
+        )
+        return
+
     try:
-        channel = interaction.client.get_channel(1512884361698213980)
+        channel = interaction.guild.get_channel(config['invite_channel_id'])
         if not channel:
             await interaction.response.send_message('❌ לא נמצא הצ\'אט!', ephemeral=True)
             return
@@ -443,4 +530,6 @@ async def invite(interaction: discord.Interaction, שחקן: discord.Member):
 
     except Exception as e:
         await interaction.response.send_message(f'❌ שגיאה: {e}', ephemeral=True)
+
+
 bot.run(TOKEN)
