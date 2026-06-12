@@ -58,11 +58,6 @@ async def היי(ctx):
 
 
 class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות'):
-    name = discord.ui.TextInput(
-        label='השם שלך',
-        placeholder='לדוגמה: דוד',
-        max_length=50
-    )
     army_choice = discord.ui.TextInput(
         label='לאיזה צבא אתה רוצה להגיש מועמדות?',
         placeholder='טאליבאן / יחידת הריינג\'רים 75',
@@ -73,16 +68,21 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
         placeholder='לדוגמה: 18',
         max_length=3
     )
+    rules = discord.ui.TextInput(
+        label='האם יש לך ידע בחוקי מילסים?',
+        placeholder='כן / לא',
+        max_length=100
+    )
+    experience = discord.ui.TextInput(
+        label='האם יש לך ניסיון בשרתי מילסים?',
+        placeholder='כן / לא',
+        max_length=100
+    )
     about = discord.ui.TextInput(
         label='ספר לנו קצת על עצמך',
         placeholder='כתוב כאן...',
         style=discord.TextStyle.long,
         max_length=1000
-    )
-    experience = discord.ui.TextInput(
-        label='ניסיון במילסים + ידע בחוקים (כן/לא)',
-        placeholder='ניסיון: כן/לא | ידע בחוקים: כן/לא',
-        max_length=100
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -102,30 +102,28 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             )
             return
 
-        color = discord.Color.from_rgb(0, 0, 0)
-
         embed = discord.Embed(
             title='📋 טופס מועמדות חדש',
-            color=color,
+            color=0x000000,
             timestamp=datetime.utcnow()
         )
         embed.add_field(name='👤 מגיש הטופס', value=interaction.user.mention, inline=False)
-        embed.add_field(name='📝 שם', value=self.name.value, inline=True)
         embed.add_field(name='⚔️ צבא מבוקש', value=self.army_choice.value, inline=True)
         embed.add_field(name='🎂 גיל', value=self.age.value, inline=True)
+        embed.add_field(name='📜 ידע בחוקים', value=self.rules.value, inline=True)
+        embed.add_field(name='🎖️ ניסיון במילסים', value=self.experience.value, inline=True)
         embed.add_field(name='📖 על עצמו', value=self.about.value, inline=False)
-        embed.add_field(name='🎖️ ניסיון + ידע בחוקים', value=self.experience.value, inline=False)
         embed.add_field(name='📊 סטטוס', value='⏳ ממתין לטיפול', inline=True)
         embed.add_field(name='👤 טופל על ידי', value='טרם טופל', inline=True)
         embed.set_footer(text=f'ID: {interaction.user.id}')
 
         view = StaffDecisionView(
             applicant=interaction.user,
-            first_name=self.name.value,
+            first_name=interaction.user.name,
             army_choice=self.army_choice.value,
             steam_link='',
             age=self.age.value,
-            availability=self.experience.value
+            availability=f'ניסיון: {self.experience.value} | חוקים: {self.rules.value}'
         )
 
         await staff_forms_channel.send(embed=embed, view=view)
@@ -434,7 +432,7 @@ async def recruitment(interaction: discord.Interaction):
             'לאחר אישור הטופס, יקבע עבורכם שיחת מיון עם צוות.\n\n'
             '━━━━━━━━━━━━━━━━━━━━━━'
         ),
-        color=0xFFD700
+        color=0x000000
     )
     embed.add_field(name='🇺🇸 הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
