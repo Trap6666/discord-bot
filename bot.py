@@ -133,7 +133,8 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             availability=f'ניסיון: {self.experience.value} | חוקים: {self.rules.value}'
         )
 
-        await staff_forms_channel.send(embed=embed, view=view)
+        staff_role = interaction.guild.get_role(config['staff_role_id'])
+await staff_forms_channel.send(content=staff_role.mention if staff_role else '', embed=embed, view=view)
         await interaction.response.send_message(
             '✅ הטופס שלך נשלח בהצלחה!\nאנא המתן לתגובת הצוות.',
             ephemeral=True
@@ -153,9 +154,9 @@ class RejectionReasonView(discord.ui.View):
         results_channel = interaction.guild.get_channel(config['results_channel_id'])
 
         if self.army == 'taliban':
-            unit = "Taliban <:taliban6763730_1280:>"
+            unit = "Taliban <:taliban6763730_1280:1507845143464771674>"
         else:
-            unit = "Rangers <:3swd845:>"
+            unit = "Rangers <:3swd845:1507845088003362856>"
 
         msg = f"{self.applicant.mention} 🔴 The application you submitted to the {unit} {reason_text}"
 
@@ -220,9 +221,9 @@ class ArmySelectView(discord.ui.View):
 
         if self.action == 'accept':
             if army == 'taliban':
-                msg = f"{self.applicant.mention} 🟢 Your application for the Taliban <:taliban6763730_1280:> has been approved. Please check the Phase B room that has opened for you to proceed."
+                msg = f"{self.applicant.mention} 🟢 Your application for the Taliban <:taliban6763730_1280:1507845143464771674> has been approved. Please check the Phase B room that has opened for you to proceed."
             else:
-                msg = f"{self.applicant.mention} 🟢 Your application for the Rangers <:3swd845:> has been approved. Please check the Phase B room that has opened for you to proceed."
+                msg = f"{self.applicant.mention} 🟢 Your application for the Rangers <:3swd845:1507845088003362856> has been approved. Please check the Phase B room that has opened for you to proceed."
 
             if results_channel:
                 await results_channel.send(msg)
