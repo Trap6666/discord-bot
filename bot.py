@@ -134,7 +134,7 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
         )
 
         staff_role = interaction.guild.get_role(config['staff_role_id'])
-await staff_forms_channel.send(content=staff_role.mention if staff_role else '', embed=embed, view=view)
+        await staff_forms_channel.send(content=staff_role.mention if staff_role else '', embed=embed, view=view)
         await interaction.response.send_message(
             '✅ הטופס שלך נשלח בהצלחה!\nאנא המתן לתגובת הצוות.',
             ephemeral=True
