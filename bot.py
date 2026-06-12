@@ -24,15 +24,6 @@ def save_configs():
         json.dump({str(k): v for k, v in guild_configs.items()}, f, ensure_ascii=False, indent=2)
 
 
-# guild_configs[guild_id] = {
-#   'staff_role_id': int,
-#   'recruitment_channel_id': int,
-#   'staff_forms_channel_id': int,
-#   'accepted_category_id': int,
-#   'transcript_channel_id': int,
-#   'results_channel_id': int,
-#   'invite_channel_id': int (optional)
-# }
 guild_configs = load_configs()
 
 
@@ -161,6 +152,60 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
         )
 
 
+class RejectionReasonView(discord.ui.View):
+    def __init__(self, applicant, form_data, original_message, army):
+        super().__init__(timeout=60)
+        self.applicant = applicant
+        self.form_data = form_data
+        self.original_message = original_message
+        self.army = army
+
+    async def send_rejection(self, interaction: discord.Interaction, reason_text: str):
+        config = get_config(interaction.guild.id)
+        results_channel = interaction.guild.get_channel(config['results_channel_id'])
+
+        if self.army == 'taliban':
+            unit = "Taliban <:taliban6763730_1280:>"
+        else:
+            unit = "Rangers <:3swd845:>"
+
+        msg = f"{self.applicant.mention} 🔴 The application you submitted to the {unit} {reason_text}"
+
+        if results_channel:
+            await results_channel.send(msg)
+
+        original_embed = self.original_message.embeds[0]
+        original_embed.set_field_at(
+            original_embed.fields.index(next(f for f in original_embed.fields if f.name == '📊 סטטוס')),
+            name='📊 סטטוס', value='❌ נדחה', inline=True
+        )
+        original_embed.set_field_at(
+            original_embed.fields.index(next(f for f in original_embed.fields if f.name == '👤 טופל על ידי')),
+            name='👤 טופל על ידי', value=interaction.user.mention, inline=True
+        )
+        original_embed.color = discord.Color.red()
+
+        disabled_view = discord.ui.View(timeout=None)
+        for item in StaffDecisionView(self.applicant, '', '', '', '', '').children:
+            item.disabled = True
+            disabled_view.add_item(item)
+
+        await self.original_message.edit(embed=original_embed, view=disabled_view)
+        await interaction.response.edit_message(content='❌ הטופס נדחה והמשתמש קיבל הודעה.', view=None)
+
+    @discord.ui.button(label='📋 הטופס סגור', style=discord.ButtonStyle.grey)
+    async def closed_forms(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.send_rejection(interaction, 'has been rejected due to Temporarily Closed Forms.')
+
+    @discord.ui.button(label='📝 חוסר בפרטים', style=discord.ButtonStyle.grey)
+    async def lack_of_details(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.send_rejection(interaction, 'has been rejected due to a lack of detailed information.')
+
+    @discord.ui.button(label='📜 חוסר ידע בחוקים', style=discord.ButtonStyle.grey)
+    async def lack_of_rules(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.send_rejection(interaction, 'has been rejected due to lack of rules knowledge.')
+
+
 class ArmySelectView(discord.ui.View):
     def __init__(self, action, applicant, form_data, original_message):
         super().__init__(timeout=60)
@@ -180,18 +225,16 @@ class ArmySelectView(discord.ui.View):
     async def handle(self, interaction: discord.Interaction, army: str):
         config = get_config(interaction.guild.id)
         if not config:
-            await interaction.response.send_message(
-                '❌ המערכת לא הוגדרה בשרת הזה!', ephemeral=True
-            )
+            await interaction.response.send_message('❌ המערכת לא הוגדרה בשרת הזה!', ephemeral=True)
             return
 
         results_channel = interaction.guild.get_channel(config['results_channel_id'])
 
         if self.action == 'accept':
             if army == 'taliban':
-                msg = f"{self.applicant.mention} **- 🟢 Your application for the Taliban army has been approved. Please check the Stage 2 room that has opened for you to proceed.**"
+                msg = f"{self.applicant.mention} 🟢 Your application for the Taliban <:taliban6763730_1280:> has been approved. Please check the Stage 2 room that has opened for you to proceed."
             else:
-                msg = f"{self.applicant.mention} **- 🟢 Your application for the U.S Army has been approved. Please check the Stage 2 room that has opened for you to proceed.**"
+                msg = f"{self.applicant.mention} 🟢 Your application for the Rangers <:3swd845:> has been approved. Please check the Stage 2 room that has opened for you to proceed."
 
             if results_channel:
                 await results_channel.send(msg)
@@ -245,32 +288,13 @@ class ArmySelectView(discord.ui.View):
             await interaction.response.edit_message(content=f'✅ התקבל! נפתח חדר: {channel.mention}', view=None)
 
         else:
-            if army == 'taliban':
-                msg = f"{self.applicant.mention} **- 🔴 Your application for the Taliban army has been denied. If you would like to receive more information, please open a ticket.**"
-            else:
-                msg = f"{self.applicant.mention} **- 🔴 Your application for the U.S. Army has been denied. If you would like to receive more information, please open a ticket.**"
-
-            if results_channel:
-                await results_channel.send(msg)
-
-            original_embed = self.original_message.embeds[0]
-            original_embed.set_field_at(
-                original_embed.fields.index(next(f for f in original_embed.fields if f.name == '📊 סטטוס')),
-                name='📊 סטטוס', value='❌ נדחה', inline=True
+            reason_view = RejectionReasonView(
+                applicant=self.applicant,
+                form_data=self.form_data,
+                original_message=self.original_message,
+                army=army
             )
-            original_embed.set_field_at(
-                original_embed.fields.index(next(f for f in original_embed.fields if f.name == '👤 טופל על ידי')),
-                name='👤 טופל על ידי', value=interaction.user.mention, inline=True
-            )
-            original_embed.color = discord.Color.red()
-
-            disabled_view = discord.ui.View(timeout=None)
-            for item in StaffDecisionView(self.applicant, '', '', '', '', '').children:
-                item.disabled = True
-                disabled_view.add_item(item)
-
-            await self.original_message.edit(embed=original_embed, view=disabled_view)
-            await interaction.response.edit_message(content='❌ הטופס נדחה והמשתמש קיבל הודעה.', view=None)
+            await interaction.response.edit_message(content='❌ מה סיבת הדחייה?', view=reason_view)
 
 
 class CloseInterviewView(discord.ui.View):
@@ -421,15 +445,21 @@ async def recruitment(interaction: discord.Interaction):
         return
 
     embed = discord.Embed(
-        title='⚔️ טפסי הצטרפות',
-        description='ברוכים הבאים למערכת ההצטרפות!\nלחצו על הכפתור למטה כדי להגיש מועמדות.',
-        color=discord.Color.dark_blue()
+        title='🪖 הצטרפות לשרת',
+        description=(
+            '**מעוניינים להצטרף?** לחץ על הכפתור שמתחת ומלאו טופס קצר.\n'
+            'לאחר אישור הטופס, יקבע עבורכם שיחת מיון עם צוות.\n\n'
+            '━━━━━━━━━━━━━━━━━━━━━━'
+        ),
+        color=0xFFD700
     )
-    embed.add_field(name='יחידת הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
+    embed.add_field(name='🇺🇸 הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
-    embed.set_footer(text='גיל מינימלי: 15 | זמינות: 1-10')
+    embed.add_field(name='\u200b', value='━━━━━━━━━━━━━━━━━━━━━━', inline=False)
+    embed.set_footer(text='גיל מינימלי: 15  •  זמינות: 1-10')
+    embed.set_image(url='https://i.postimg.cc/cHBFR3zw/Code-Generated-Image-2.gif')
 
-    await interaction.response.send_message('✅המערכת הופעלה בהצלחה', ephemeral=True)
+    await interaction.response.send_message('✅ המערכת הופעלה בהצלחה', ephemeral=True)
     await interaction.channel.send(embed=embed, view=RecruitmentView())
 
 
