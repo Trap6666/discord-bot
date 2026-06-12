@@ -220,9 +220,9 @@ class ArmySelectView(discord.ui.View):
 
         if self.action == 'accept':
             if army == 'taliban':
-                msg = f"{self.applicant.mention} 🟢 Your application for the Taliban <:taliban6763730_1280:> has been approved. Please check the Stage 2 room that has opened for you to proceed."
+                msg = f"{self.applicant.mention} 🟢 Your application for the Taliban <:taliban6763730_1280:> has been approved. Please check the Phase B room that has opened for you to proceed."
             else:
-                msg = f"{self.applicant.mention} 🟢 Your application for the Rangers <:3swd845:> has been approved. Please check the Stage 2 room that has opened for you to proceed."
+                msg = f"{self.applicant.mention} 🟢 Your application for the Rangers <:3swd845:> has been approved. Please check the Phase B room that has opened for you to proceed."
 
             if results_channel:
                 await results_channel.send(msg)
