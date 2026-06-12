@@ -58,8 +58,8 @@ async def היי(ctx):
 
 
 class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות'):
-    first_name = discord.ui.TextInput(
-        label='השם הפרטי שלך',
+    name = discord.ui.TextInput(
+        label='השם שלך',
         placeholder='לדוגמה: דוד',
         max_length=50
     )
@@ -68,20 +68,21 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
         placeholder='טאליבאן / יחידת הריינג\'רים 75',
         max_length=50
     )
-    steam_link = discord.ui.TextInput(
-        label='קישור לפרופיל הסטים שלך',
-        placeholder='https://steamcommunity.com/id/...',
-        max_length=200
-    )
     age = discord.ui.TextInput(
-        label='בן כמה אתה? (15+)',
+        label='בן כמה אתה?',
         placeholder='לדוגמה: 18',
         max_length=3
     )
-    availability = discord.ui.TextInput(
-        label='מה הזמינות שלך? (1-10)',
-        placeholder='לדוגמה: 8',
-        max_length=2
+    about = discord.ui.TextInput(
+        label='ספר לנו קצת על עצמך',
+        placeholder='כתוב כאן...',
+        style=discord.TextStyle.long,
+        max_length=1000
+    )
+    experience = discord.ui.TextInput(
+        label='ניסיון במילסים + ידע בחוקים (כן/לא)',
+        placeholder='ניסיון: כן/לא | ידע בחוקים: כן/לא',
+        max_length=100
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -91,24 +92,6 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
                 '❌ המערכת לא הוגדרה בשרת הזה! בקש מאדמין להריץ /setup',
                 ephemeral=True
             )
-            return
-
-        try:
-            age_int = int(self.age.value)
-            if age_int < 15:
-                await interaction.response.send_message('❌ גיל מינימלי להגשה הוא 15!', ephemeral=True)
-                return
-        except ValueError:
-            await interaction.response.send_message('❌ אנא הכנס גיל תקין!', ephemeral=True)
-            return
-
-        try:
-            avail_int = int(self.availability.value)
-            if avail_int < 1 or avail_int > 10:
-                await interaction.response.send_message('❌ זמינות חייבת להיות בין 1 ל־10!', ephemeral=True)
-                return
-        except ValueError:
-            await interaction.response.send_message('❌ אנא הכנס זמינות תקינה בין 1 ל־10!', ephemeral=True)
             return
 
         staff_forms_channel = interaction.guild.get_channel(config['staff_forms_channel_id'])
@@ -127,22 +110,22 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             timestamp=datetime.utcnow()
         )
         embed.add_field(name='👤 מגיש הטופס', value=interaction.user.mention, inline=False)
-        embed.add_field(name='📝 שם פרטי', value=self.first_name.value, inline=True)
+        embed.add_field(name='📝 שם', value=self.name.value, inline=True)
         embed.add_field(name='⚔️ צבא מבוקש', value=self.army_choice.value, inline=True)
-        embed.add_field(name='🎮 קישור סטים', value=self.steam_link.value, inline=False)
         embed.add_field(name='🎂 גיל', value=self.age.value, inline=True)
-        embed.add_field(name='⏰ זמינות', value=f'{self.availability.value}/10', inline=True)
+        embed.add_field(name='📖 על עצמו', value=self.about.value, inline=False)
+        embed.add_field(name='🎖️ ניסיון + ידע בחוקים', value=self.experience.value, inline=False)
         embed.add_field(name='📊 סטטוס', value='⏳ ממתין לטיפול', inline=True)
         embed.add_field(name='👤 טופל על ידי', value='טרם טופל', inline=True)
         embed.set_footer(text=f'ID: {interaction.user.id}')
 
         view = StaffDecisionView(
             applicant=interaction.user,
-            first_name=self.first_name.value,
+            first_name=self.name.value,
             army_choice=self.army_choice.value,
-            steam_link=self.steam_link.value,
+            steam_link='',
             age=self.age.value,
-            availability=self.availability.value
+            availability=self.experience.value
         )
 
         await staff_forms_channel.send(embed=embed, view=view)
@@ -456,7 +439,7 @@ async def recruitment(interaction: discord.Interaction):
     embed.add_field(name='🇺🇸 הריינג\'רים 75', value='כוח עילית אמריקאי', inline=True)
     embed.add_field(name='☪️ טאליבאן', value='כוחות הטאליבאן', inline=True)
     embed.add_field(name='\u200b', value='━━━━━━━━━━━━━━━━━━━━━━', inline=False)
-    embed.set_footer(text='גיל מינימלי: 15  •  זמינות: 1-10')
+    embed.set_footer(text='WestSide MilSim [BETA]')
     embed.set_image(url='https://i.postimg.cc/cHBFR3zw/Code-Generated-Image-2.gif')
 
     await interaction.response.send_message('✅ המערכת הופעלה בהצלחה', ephemeral=True)
