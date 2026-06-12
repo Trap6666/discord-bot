@@ -43,6 +43,13 @@ bot.remove_command('help')
 @bot.event
 async def on_ready():
     bot.add_view(RecruitmentView())
+    await bot.change_presence(
+        status=discord.Status.online,
+        activity=discord.Activity(
+            type=discord.ActivityType.playing,
+            name='WestSide MilSim'
+        )
+    )
     try:
         synced = await bot.tree.sync()
         print(f'✅ הבוט {bot.user} מחובר! סונכרנו {len(synced)} פקודות גלובליות.')
