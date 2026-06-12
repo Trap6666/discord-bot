@@ -102,7 +102,7 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             )
             return
 
-        color = discord.Color.green() if 'טאליבאן' in self.army_choice.value else discord.Color.blue()
+        color = discord.Color.from_rgb(0, 0, 0)
 
         embed = discord.Embed(
             title='📋 טופס מועמדות חדש',
@@ -411,7 +411,7 @@ class RecruitmentView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label='הגש מועמדות', style=discord.ButtonStyle.primary, emoji='📋', custom_id='recruitment_button')
+    @discord.ui.button(label='הגש מועמדות', style=discord.ButtonStyle.danger, emoji='📋', custom_id='recruitment_button')
     async def start_recruitment(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ApplicationModal())
 
