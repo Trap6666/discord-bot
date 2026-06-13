@@ -70,8 +70,7 @@ async def update_status():
                         count = len(players)
                     else:
                         count = 0
-        except:
-            count = 0except Exception as e:
+        except Exception as e:
             print(f'שגיאת FiveM: {e}')
             count = 0
 
