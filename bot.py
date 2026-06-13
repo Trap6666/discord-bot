@@ -1,12 +1,15 @@
 import discord
 from discord.ext import commands
 import os
+import aiohttp
 import json
 import asyncio
 from datetime import datetime
 from typing import Optional
 
 TOKEN = os.environ.get('DISCORD_TOKEN')
+FIVEM_IP = '88.214.55.234'
+FIVEM_PORT = 30120
 
 CONFIG_FILE = 'guild_configs.json'
 
@@ -43,13 +46,6 @@ bot.remove_command('help')
 @bot.event
 async def on_ready():
     bot.add_view(RecruitmentView())
-    await bot.change_presence(
-        status=discord.Status.online,
-        activity=discord.Activity(
-            type=discord.ActivityType.playing,
-            name='WestSide MilSim'
-        )
-    )
     try:
         synced = await bot.tree.sync()
         print(f'✅ הבוט {bot.user} מחובר! סונכרנו {len(synced)} פקודות גלובליות.')
@@ -57,6 +53,34 @@ async def on_ready():
             print(f'  - {cmd.name}')
     except Exception as e:
         print(f'שגיאה בסנכרון: {e}')
+    bot.loop.create_task(update_status())
+
+
+async def update_status():
+    await bot.wait_until_ready()
+    while not bot.is_closed():
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f'http://{FIVEM_IP}:{FIVEM_PORT}/players.json',
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 200:
+                        players = await resp.json()
+                        count = len(players)
+                    else:
+                        count = 0
+        except:
+            count = 0
+
+        await bot.change_presence(
+            status=discord.Status.online,
+            activity=discord.Activity(
+                type=discord.ActivityType.playing,
+                name=f'WestSide MilSim | {count} שחקנים'
+            )
+        )
+        await asyncio.sleep(60)
 
 
 @bot.command()
