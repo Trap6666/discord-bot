@@ -64,32 +64,77 @@ async def היי(ctx):
     await ctx.send(f'היי {ctx.author.name}! 👋')
 
 
-class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות'):
-    army_choice = discord.ui.TextInput(
-        label='לאיזה צבא אתה רוצה להגיש מועמדות?',
-        placeholder='טאליבאן / יחידת הריינג\'רים 75',
+class ApplicationModal1(discord.ui.Modal, title='טופס הגשת מועמדות - חלק א'):
+    name = discord.ui.TextInput(
+        label='מה השם שלך?',
+        placeholder='לדוגמה: דוד',
         max_length=50
+    )
+    steam_link = discord.ui.TextInput(
+        label='קישור למשתמש סטים שלך',
+        placeholder='https://steamcommunity.com/id/...',
+        max_length=200
     )
     age = discord.ui.TextInput(
         label='בן כמה אתה?',
         placeholder='לדוגמה: 18',
         max_length=3
     )
-    rules = discord.ui.TextInput(
-        label='האם יש לך ידע בחוקי מילסים?',
-        placeholder='כן / לא',
-        max_length=100
+    army_choice = discord.ui.TextInput(
+        label='לאיזה ארגון תרצה להגיש מועמדות?',
+        placeholder='טאליבאן / יחידת הריינג\'רים 75',
+        max_length=50
     )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(
+            ApplicationModal2(
+                name=self.name.value,
+                steam_link=self.steam_link.value,
+                age=self.age.value,
+                army_choice=self.army_choice.value
+            )
+        )
+
+
+class ApplicationModal2(discord.ui.Modal, title='טופס הגשת מועמדות - חלק ב'):
+    def __init__(self, name, steam_link, age, army_choice):
+        super().__init__()
+        self.name_val = name
+        self.steam_link_val = steam_link
+        self.age_val = age
+        self.army_choice_val = army_choice
+
     experience = discord.ui.TextInput(
-        label='האם יש לך ניסיון בשרתי מילסים?',
-        placeholder='כן / לא',
-        max_length=100
+        label='האם יש לך ניסיון קודם בשרתי מילסים?',
+        placeholder='אם כן, פרט...',
+        style=discord.TextStyle.long,
+        max_length=1000
     )
-    about = discord.ui.TextInput(
-        label='ספר לנו קצת על עצמך',
+    why_join = discord.ui.TextInput(
+        label='למה אתה רוצה להצטרף לשרת?',
         placeholder='כתוב כאן...',
         style=discord.TextStyle.long,
         max_length=1000
+    )
+    about = discord.ui.TextInput(
+        label='ספר לנו על עצמך',
+        placeholder='כתוב כאן...',
+        style=discord.TextStyle.long,
+        max_length=1000
+    )
+    rules = discord.ui.TextInput(
+        label='מהם החוקים RDM - VDM - MG - NITRP?',
+        placeholder='הסבר כל חוק...',
+        style=discord.TextStyle.long,
+        max_length=1000
+    )
+    notes = discord.ui.TextInput(
+        label='הערות (לא חובה)',
+        placeholder='אם יש משהו נוסף שתרצה להוסיף...',
+        style=discord.TextStyle.long,
+        max_length=500,
+        required=False
     )
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -115,22 +160,26 @@ class ApplicationModal(discord.ui.Modal, title='טופס הגשת מועמדות
             timestamp=datetime.utcnow()
         )
         embed.add_field(name='👤 מגיש הטופס', value=interaction.user.mention, inline=False)
-        embed.add_field(name='⚔️ צבא מבוקש', value=self.army_choice.value, inline=True)
-        embed.add_field(name='🎂 גיל', value=self.age.value, inline=True)
-        embed.add_field(name='📜 ידע בחוקים', value=self.rules.value, inline=True)
-        embed.add_field(name='🎖️ ניסיון במילסים', value=self.experience.value, inline=True)
+        embed.add_field(name='📝 שם', value=self.name_val, inline=True)
+        embed.add_field(name='⚔️ ארגון מבוקש', value=self.army_choice_val, inline=True)
+        embed.add_field(name='🎂 גיל', value=self.age_val, inline=True)
+        embed.add_field(name='🎮 קישור סטים', value=self.steam_link_val, inline=False)
+        embed.add_field(name='🎖️ ניסיון במילסים', value=self.experience.value, inline=False)
+        embed.add_field(name='❓ למה להצטרף', value=self.why_join.value, inline=False)
         embed.add_field(name='📖 על עצמו', value=self.about.value, inline=False)
+        embed.add_field(name='📜 ידע בחוקים', value=self.rules.value, inline=False)
+        embed.add_field(name='📌 הערות', value=self.notes.value if self.notes.value else 'אין', inline=False)
         embed.add_field(name='📊 סטטוס', value='⏳ ממתין לטיפול', inline=True)
         embed.add_field(name='👤 טופל על ידי', value='טרם טופל', inline=True)
         embed.set_footer(text=f'ID: {interaction.user.id}')
 
         view = StaffDecisionView(
             applicant=interaction.user,
-            first_name=interaction.user.name,
-            army_choice=self.army_choice.value,
-            steam_link='',
-            age=self.age.value,
-            availability=f'ניסיון: {self.experience.value} | חוקים: {self.rules.value}'
+            first_name=self.name_val,
+            army_choice=self.army_choice_val,
+            steam_link=self.steam_link_val,
+            age=self.age_val,
+            availability=f'ניסיון: {self.experience.value}'
         )
 
         staff_role = interaction.guild.get_role(config['staff_role_id'])
@@ -328,7 +377,7 @@ class CloseInterviewView(discord.ui.View):
         embed.add_field(name='⚔️ צבא מבוקש', value=self.form_data['army_choice'], inline=True)
         embed.add_field(name='🎮 קישור סטים', value=self.form_data['steam_link'], inline=False)
         embed.add_field(name='🎂 גיל', value=self.form_data['age'], inline=True)
-        embed.add_field(name='⏰ זמינות', value=f"{self.form_data['availability']}/10", inline=True)
+        embed.add_field(name='🎖️ ניסיון', value=self.form_data['availability'], inline=False)
 
         transcript_text = '\n'.join(messages) if messages else 'אין הודעות'
         if len(transcript_text) > 1000:
@@ -419,7 +468,7 @@ class RecruitmentView(discord.ui.View):
 
     @discord.ui.button(label='הגש מועמדות', style=discord.ButtonStyle.danger, emoji='📋', custom_id='recruitment_button')
     async def start_recruitment(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(ApplicationModal())
+        await interaction.response.send_modal(ApplicationModal1())
 
 
 @bot.tree.command(name='גיוס', description='שליחת הודעת גיוס עם כפתור הגשת מועמדות')
