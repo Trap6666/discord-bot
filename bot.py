@@ -87,12 +87,35 @@ class ApplicationModal1(discord.ui.Modal, title='טופס הגשת מועמדו�
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        view = Part2ButtonView(
+            name=self.name.value,
+            steam_link=self.steam_link.value,
+            age=self.age.value,
+            army_choice=self.army_choice.value
+        )
+        await interaction.response.send_message(
+            '✅ חלק א\' התקבל! לחץ על הכפתור להמשיך לחלק ב\'.',
+            view=view,
+            ephemeral=True
+        )
+
+
+class Part2ButtonView(discord.ui.View):
+    def __init__(self, name, steam_link, age, army_choice):
+        super().__init__(timeout=300)
+        self.name = name
+        self.steam_link = steam_link
+        self.age = age
+        self.army_choice = army_choice
+
+    @discord.ui.button(label='המשך לחלק ב\' ←', style=discord.ButtonStyle.primary)
+    async def continue_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(
             ApplicationModal2(
-                name=self.name.value,
-                steam_link=self.steam_link.value,
-                age=self.age.value,
-                army_choice=self.army_choice.value
+                name=self.name,
+                steam_link=self.steam_link,
+                age=self.age,
+                army_choice=self.army_choice
             )
         )
 
