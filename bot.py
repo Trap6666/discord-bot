@@ -71,6 +71,8 @@ async def update_status():
                     else:
                         count = 0
         except:
+            count = 0except Exception as e:
+            print(f'שגיאת FiveM: {e}')
             count = 0
 
         await bot.change_presence(
