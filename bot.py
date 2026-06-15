@@ -10,7 +10,9 @@ from typing import Optional
 TOKEN = os.environ.get('DISCORD_TOKEN')
 FIVEM_IP = '88.214.55.234'
 FIVEM_PORT = 30120
-
+PLAYER_LIST_CHANNEL_ID = 1503477897959047374
+US_ROLE_ID = 1503477897443282962
+TALIBAN_ROLE_ID = 1503477897451798662
 CONFIG_FILE = 'guild_configs.json'
 
 
@@ -54,6 +56,7 @@ async def on_ready():
     except Exception as e:
         print(f'שגיאה בסנכרון: {e}')
     bot.loop.create_task(update_status())
+    bot.loop.create_task(update_player_list())
 
 
 async def update_status():
@@ -63,7 +66,9 @@ async def update_status():
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     f'http://{FIVEM_IP}:{FIVEM_PORT}/players.json',
-                    timeout=aiohttp.ClientTimeout(total=5)
+                    timeout=aiohttp.ClientTimeout(total=10),
+                    headers={'User-Agent': 'Mozilla/5.0'},
+                    ssl=False
                 ) as resp:
                     if resp.status == 200:
                         players = await resp.json()
@@ -82,6 +87,61 @@ async def update_status():
             )
         )
         await asyncio.sleep(60)
+
+
+async def update_player_list():
+    await bot.wait_until_ready()
+    message_id = None
+
+    while not bot.is_closed():
+        try:
+            for guild in bot.guilds:
+                channel = guild.get_channel(PLAYER_LIST_CHANNEL_ID)
+                if not channel:
+                    continue
+
+                us_role = guild.get_role(US_ROLE_ID)
+                taliban_role = guild.get_role(TALIBAN_ROLE_ID)
+
+                us_members = [m.display_name for m in guild.members if us_role in m.roles]
+                taliban_members = [m.display_name for m in guild.members if taliban_role in m.roles]
+
+                embed = discord.Embed(
+                    title='🎮 רשימת שחקנים פעילים',
+                    color=0x000000,
+                    timestamp=datetime.utcnow()
+                )
+
+                us_value = '\n'.join([f'• {name}' for name in us_members]) if us_members else 'אין שחקנים'
+                taliban_value = '\n'.join([f'• {name}' for name in taliban_members]) if taliban_members else 'אין שחקנים'
+
+                embed.add_field(
+                    name=f'🇺🇸 יחידת הריינג\'רים 75 ({len(us_members)})',
+                    value=us_value,
+                    inline=True
+                )
+                embed.add_field(
+                    name=f'☪️ טאליבאן ({len(taliban_members)})',
+                    value=taliban_value,
+                    inline=True
+                )
+                embed.set_footer(text='מתעדכן כל 2 דקות')
+
+                if message_id:
+                    try:
+                        msg = await channel.fetch_message(message_id)
+                        await msg.edit(embed=embed)
+                    except:
+                        msg = await channel.send(embed=embed)
+                        message_id = msg.id
+                else:
+                    msg = await channel.send(embed=embed)
+                    message_id = msg.id
+
+        except Exception as e:
+            print(f'שגיאת player list: {e}')
+
+        await asyncio.sleep(120)
 
 
 @bot.command()
