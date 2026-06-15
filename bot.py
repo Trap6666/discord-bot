@@ -112,8 +112,15 @@ async def update_player_list():
                     timestamp=datetime.utcnow()
                 )
 
-                us_value = '\n'.join([f'• {name}' for name in us_members]) if us_members else 'אין שחקנים'
-                taliban_value = '\n'.join([f'• {name}' for name in taliban_members]) if taliban_members else 'אין שחקנים'
+                us_value = '\n'.join([f'• {name}' for name in us_members[:30]]) if us_members else 'אין שחקנים'
+                if len(us_members) > 30:
+                    us_value += f'\n... ועוד {len(us_members) - 30}'
+                us_value = us_value[:1024]
+
+                taliban_value = '\n'.join([f'• {name}' for name in taliban_members[:30]]) if taliban_members else 'אין שחקנים'
+                if len(taliban_members) > 30:
+                    taliban_value += f'\n... ועוד {len(taliban_members) - 30}'
+                taliban_value = taliban_value[:1024]
 
                 embed.add_field(
                     name=f'🇺🇸 יחידת הריינג\'רים 75 ({len(us_members)})',
